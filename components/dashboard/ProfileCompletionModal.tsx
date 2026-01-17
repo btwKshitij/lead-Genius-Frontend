@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
     Dialog,
     DialogContent,
@@ -11,25 +12,99 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, CheckCircle2, Circle } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
+
+interface Organization {
+    id: string;
+    name: string;
+    domain?: string;
+    industry?: string;
+    business_model?: string;
+}
 
 export function ProfileCompletionModal() {
+    const router = useRouter();
+    const { user } = useAuth();
     const [open, setOpen] = useState(false);
+    const [organization, setOrganization] = useState<Organization | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
+    // Fetch organization data
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setOpen(true);
-        }, 5000);
+        async function fetchOrgData() {
+            setIsLoading(true);
+            const { data, error } = await api.get<{ organizations: Organization[] }>("/api/organizations");
 
-        return () => clearTimeout(timer);
-    }, []);
+            if (!error && data && data.organizations?.length > 0) {
+                setOrganization(data.organizations[0]);
+            }
+            setIsLoading(false);
+        }
 
-    const checklistItems = [
-        { label: "Where are your ideal customers located? (USA/India)", completed: false },
-        { label: "Which social media platform are your users mainly active on? (LinkedIn/Insta/Twitter/Facebook)", completed: false },
-        { label: "Which department usually buys your solution?", completed: false },
-        { label: "List 3-5 job titles you target most often", completed: false },
-    ];
+        if (user) {
+            fetchOrgData();
+        }
+    }, [user]);
+
+    // Show modal after 3 seconds if profile is incomplete
+    useEffect(() => {
+        if (!isLoading) {
+            const completionPercent = calculateCompletion();
+            if (completionPercent < 100) {
+                const timer = setTimeout(() => {
+                    setOpen(true);
+                }, 3000);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [isLoading, user, organization]);
+
+    // Calculate completion percentage based on real data
+    const calculateCompletion = () => {
+        const items = getChecklistItems();
+        const completed = items.filter(item => item.completed).length;
+        return Math.round((completed / items.length) * 100);
+    };
+
+    // Generate checklist based on real user/org data
+    const getChecklistItems = () => {
+        return [
+            {
+                label: "Complete your profile name",
+                completed: !!user?.full_name,
+                key: "name"
+            },
+            {
+                label: "Add your company website",
+                completed: !!organization?.domain,
+                key: "domain"
+            },
+            {
+                label: "Select your industry",
+                completed: !!organization?.industry,
+                key: "industry"
+            },
+            {
+                label: "Choose your business model",
+                completed: !!organization?.business_model,
+                key: "model"
+            },
+        ];
+    };
+
+    const checklistItems = getChecklistItems();
+    const completionPercent = calculateCompletion();
+
+    const handleCompleteSetup = () => {
+        setOpen(false);
+        router.push("/setup");
+    };
+
+    // Don't render if loading or fully complete
+    if (isLoading || completionPercent >= 100) {
+        return null;
+    }
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -42,7 +117,7 @@ export function ProfileCompletionModal() {
                         <div className="flex-1">
                             <DialogTitle className="text-lg font-bold text-foreground mb-1">Complete Your Profile</DialogTitle>
                             <DialogDescription className="text-muted-foreground text-xs leading-snug">
-                                Your account setup is 80% complete. Please add the following details to unlock full features.
+                                Your account setup is {completionPercent}% complete. Please add the following details to unlock full features.
                             </DialogDescription>
                         </div>
                     </div>
@@ -50,10 +125,16 @@ export function ProfileCompletionModal() {
                     <div className="mb-5">
                         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider mb-2">
                             <span className="text-muted-foreground">Setup Progress</span>
-                            <span className="text-emerald-500">80%</span>
+                            <span className={completionPercent >= 75 ? "text-emerald-500" : completionPercent >= 50 ? "text-amber-500" : "text-red-500"}>
+                                {completionPercent}%
+                            </span>
                         </div>
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                            <div className="h-full bg-emerald-500 transition-all duration-500 ease-in-out" style={{ width: "80%" }} />
+                            <div
+                                className={`h-full transition-all duration-500 ease-in-out ${completionPercent >= 75 ? "bg-emerald-500" : completionPercent >= 50 ? "bg-amber-500" : "bg-red-500"
+                                    }`}
+                                style={{ width: `${completionPercent}%` }}
+                            />
                         </div>
                     </div>
 
@@ -85,7 +166,7 @@ export function ProfileCompletionModal() {
                     <Button
                         size="sm"
                         className="flex-1 bg-blue-600 hover:bg-blue-500 text-white shadow-sm"
-                        onClick={() => setOpen(false)}
+                        onClick={handleCompleteSetup}
                     >
                         Complete Setup
                     </Button>

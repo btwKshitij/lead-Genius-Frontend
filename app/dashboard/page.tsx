@@ -11,8 +11,8 @@ import {
   Calendar,
   CloudLightning,
   CheckCircle2,
-  MousePointerClick,
-  MoreVertical
+  MoreVertical,
+  Loader2
 } from "lucide-react";
 import {
   BarChart,
@@ -26,138 +26,135 @@ import {
   Pie,
   Cell
 } from "recharts";
-
-// --- Mock Data ---
-
-const stats = [
-  {
-    title: "TOTAL EXTRACTED",
-    value: "12,450",
-    change: "12% vs last week",
-    trend: "up",
-    icon: Database,
-    color: "text-blue-500",
-    bgColor: "bg-blue-500/10",
-    changeColor: "text-emerald-500"
-  },
-  {
-    title: "QUALIFIED LEADS",
-    value: "845",
-    change: "5% High Intent",
-    trend: "up",
-    icon: FileCheck,
-    color: "text-emerald-500",
-    bgColor: "bg-emerald-500/10",
-    changeColor: "text-emerald-500"
-  },
-  {
-    title: "ACTIVE CAMPAIGNS",
-    value: "12",
-    change: "Running smoothly",
-    trend: "neutral",
-    icon: Rocket,
-    color: "text-purple-500",
-    bgColor: "bg-purple-500/10",
-    changeColor: "text-slate-400"
-  },
-  {
-    title: "RESPONSES",
-    value: "342",
-    change: "4.2% Rate",
-    trend: "up",
-    icon: MessageSquare,
-    color: "text-indigo-500",
-    bgColor: "bg-indigo-500/10",
-    changeColor: "text-emerald-500"
-  },
-  {
-    title: "PENDING TASKS",
-    value: "8",
-    change: "2 Urgent items",
-    trend: "down",
-    icon: AlertCircle,
-    color: "text-amber-500",
-    bgColor: "bg-amber-500/10",
-    changeColor: "text-amber-500"
-  },
-];
-
-const leadQualityData = [
-  { name: 'Cold', value: 30, color: '#0ea5e9' }, // Sky blue (customized to match image feel)
-  { name: 'Warm', value: 45, color: '#3b82f6' }, // Blue
-  { name: 'Hot', value: 25, color: '#10b981' }, // Emerald
-];
-
-const outreachData = [
-  { day: 'Mon', value: 40 },
-  { day: 'Tue', value: 25 },
-  { day: 'Wed', value: 65 },
-  { day: 'Thu', value: 35 },
-  { day: 'Fri', value: 35 },
-  { day: 'Sat', value: 30 },
-];
-
-const recentActivity = [
-  {
-    id: 1,
-    name: "Jane Doe",
-    sub: "Acme Corp",
-    avatar: "https://i.pravatar.cc/150?u=1",
-    type: "user",
-    action: "Replied to",
-    target: "\"Intro Sequence\"",
-    status: "Interested",
-    statusColor: "emerald",
-    date: "Just now"
-  },
-  {
-    id: 2,
-    name: "LinkedIn Extraction",
-    sub: "Source: Sales Nav",
-    initials: "LI",
-    type: "app",
-    appColor: "bg-blue-600",
-    action: "50 new leads enriched",
-    status: "Completed",
-    statusColor: "blue",
-    date: "2 mins ago"
-  },
-  {
-    id: 3,
-    name: "HubSpot Sync",
-    sub: "Weekly Batch",
-    initials: "CRM",
-    type: "app",
-    appColor: "bg-purple-600",
-    action: "Syncing new contacts",
-    status: "Pending",
-    statusColor: "amber",
-    date: "15 mins ago"
-  },
-  {
-    id: 4,
-    name: "Michael Scott",
-    sub: "Dunder Mifflin",
-    avatar: "https://i.pravatar.cc/150?u=4",
-    type: "user",
-    action: "Opened email",
-    target: "\"Demo Request\"",
-    status: "Active",
-    statusColor: "blue",
-    date: "1 hour ago"
-  }
-];
-
 import { ProfileCompletionModal } from "@/components/dashboard/ProfileCompletionModal";
+import { useDashboardStats, useDashboardActivity, useDashboardChart } from "@/lib/hooks";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const { stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
+  const { activities, isLoading: activityLoading } = useDashboardActivity(10);
+  const { chartData, isLoading: chartLoading } = useDashboardChart(7);
+
+  // Transform stats for display
+  const displayStats = stats ? [
+    {
+      title: "TOTAL EXTRACTED",
+      value: stats.total_leads?.toLocaleString() || "0",
+      change: "Total leads in system",
+      trend: "up",
+      icon: Database,
+      color: "text-blue-500",
+      bgColor: "bg-blue-500/10",
+      changeColor: "text-emerald-500"
+    },
+    {
+      title: "QUALIFIED LEADS",
+      value: stats.qualified_leads?.toLocaleString() || "0",
+      change: "High Intent",
+      trend: "up",
+      icon: FileCheck,
+      color: "text-emerald-500",
+      bgColor: "bg-emerald-500/10",
+      changeColor: "text-emerald-500"
+    },
+    {
+      title: "ACTIVE CAMPAIGNS",
+      value: stats.active_campaigns?.toString() || "0",
+      change: "Running smoothly",
+      trend: "neutral",
+      icon: Rocket,
+      color: "text-purple-500",
+      bgColor: "bg-purple-500/10",
+      changeColor: "text-slate-400"
+    },
+    {
+      title: "RESPONSE RATE",
+      value: stats.response_rate || "0%",
+      change: "Reply rate",
+      trend: "up",
+      icon: MessageSquare,
+      color: "text-indigo-500",
+      bgColor: "bg-indigo-500/10",
+      changeColor: "text-emerald-500"
+    },
+    {
+      title: "PENDING TASKS",
+      value: stats.pending_tasks?.toString() || "0",
+      change: "Items to review",
+      trend: "down",
+      icon: AlertCircle,
+      color: "text-amber-500",
+      bgColor: "bg-amber-500/10",
+      changeColor: "text-amber-500"
+    },
+  ] : [];
+
+  // Lead quality pie chart data
+  const leadQualityData = stats?.lead_stats ? [
+    { name: 'Cold', value: Math.round((stats.lead_stats.by_status?.cold || 0) / (stats.total_leads || 1) * 100), color: '#0ea5e9' },
+    { name: 'Warm', value: Math.round((stats.lead_stats.by_status?.warm || 0) / (stats.total_leads || 1) * 100), color: '#3b82f6' },
+    { name: 'Hot', value: Math.round((stats.lead_stats.by_status?.hot || 0) / (stats.total_leads || 1) * 100), color: '#10b981' },
+  ] : [
+    { name: 'Cold', value: 30, color: '#0ea5e9' },
+    { name: 'Warm', value: 45, color: '#3b82f6' },
+    { name: 'Hot', value: 25, color: '#10b981' },
+  ];
+
+  // Outreach chart data
+  const outreachData = chartData ? chartData.labels.map((label, i) => ({
+    day: label,
+    value: chartData.data[i] || 0
+  })) : [];
+
+  // Transform activity for display
+  const recentActivity = activities.map((act, i) => ({
+    id: act.id || i,
+    name: act.entity_type || "Activity",
+    sub: act.action || "",
+    initials: act.entity_type?.substring(0, 2).toUpperCase() || "AC",
+    type: "app" as const,
+    appColor: "bg-blue-600",
+    action: act.action || "Action performed",
+    status: "Completed",
+    statusColor: "blue" as const,
+    date: new Date(act.created_at).toLocaleDateString()
+  }));
+
+  // Loading state
+  if (statsLoading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="text-sm text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (statsError) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <AlertCircle className="h-8 w-8 text-red-500" />
+          <p className="text-sm text-muted-foreground">Failed to load dashboard data.</p>
+          <p className="text-xs text-muted-foreground/60">{statsError}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full w-full overflow-y-auto bg-background p-6 text-foreground font-sans transition-colors duration-300">
       <ProfileCompletionModal />
       {/* --- Header --- */}
       <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Welcome back, Alex</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Welcome back{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
+          </h1>
           <p className="text-sm text-muted-foreground">Here is your pipeline health check for the last 7 days.</p>
         </div>
         <div className="flex gap-3">
@@ -178,7 +175,7 @@ export default function DashboardPage() {
 
       {/* --- Stats Row --- */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {stats.map((stat, i) => (
+        {displayStats.map((stat, i) => (
           <div key={i} className="rounded-xl border border-border bg-card p-5 shadow-sm transition hover:border-blue-500/50">
             <div className="mb-4 flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{stat.title}</span>
@@ -215,7 +212,7 @@ export default function DashboardPage() {
             icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />}
             iconBg="bg-emerald-500/10"
             title="View Scored Leads"
-            desc="Review 845 high-intent leads pending."
+            desc={`Review ${stats?.qualified_leads || 0} high-intent leads pending.`}
             action=">"
           />
 
@@ -260,15 +257,17 @@ export default function DashboardPage() {
               </ResponsiveContainer>
               {/* Center Text */}
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-bold text-card-foreground">12.4k</span>
+                <span className="text-xl font-bold text-card-foreground">
+                  {stats?.total_leads ? (stats.total_leads >= 1000 ? `${(stats.total_leads / 1000).toFixed(1)}k` : stats.total_leads) : '0'}
+                </span>
                 <span className="text-[10px] text-muted-foreground">Total Leads</span>
               </div>
             </div>
 
             <div className="flex flex-col gap-3">
-              <LegendItem label="Hot (25%)" sub="Highly Qualified" color="bg-emerald-500" />
-              <LegendItem label="Warm (45%)" sub="Engagement detected" color="bg-blue-500" />
-              <LegendItem label="Cold (30%)" sub="No activity" color="bg-sky-500" />
+              <LegendItem label={`Hot (${leadQualityData[2]?.value || 0}%)`} sub="Highly Qualified" color="bg-emerald-500" />
+              <LegendItem label={`Warm (${leadQualityData[1]?.value || 0}%)`} sub="Engagement detected" color="bg-blue-500" />
+              <LegendItem label={`Cold (${leadQualityData[0]?.value || 0}%)`} sub="No activity" color="bg-sky-500" />
             </div>
           </div>
         </div>
@@ -277,27 +276,37 @@ export default function DashboardPage() {
         <div className="rounded-xl border border-border bg-card p-6 lg:col-span-5">
           <div className="mb-6 flex items-center justify-between">
             <h3 className="text-sm font-bold text-card-foreground">Outreach Performance</h3>
-            <span className="text-xs text-muted-foreground">Last 30 Days</span>
+            <span className="text-xs text-muted-foreground">Last 7 Days</span>
           </div>
 
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={outreachData} barSize={32}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(150,150,150,0.1)" />
-                <XAxis
-                  dataKey="day"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#64748b', fontSize: 12 }}
-                  dy={10}
-                />
-                <Tooltip
-                  cursor={{ fill: 'rgba(150,150,150,0.05)' }}
-                  contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)' }}
-                />
-                <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {chartLoading ? (
+              <div className="h-full flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : outreachData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={outreachData} barSize={32}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(150,150,150,0.1)" />
+                  <XAxis
+                    dataKey="day"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    dy={10}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(150,150,150,0.05)' }}
+                    contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)' }}
+                  />
+                  <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                No data available
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -320,39 +329,45 @@ export default function DashboardPage() {
 
         {/* Table Rows */}
         <div className="divide-y divide-border">
-          {recentActivity.map((item) => (
-            <div key={item.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center transition hover:bg-muted/50">
-              <div className="col-span-4 flex items-center gap-3">
-                {item.type === 'user' ? (
-                  <img src={item.avatar} alt={item.name} className="h-10 w-10 rounded-full border border-border" />
-                ) : (
+          {activityLoading ? (
+            <div className="px-6 py-8 flex items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : recentActivity.length > 0 ? (
+            recentActivity.map((item) => (
+              <div key={item.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center transition hover:bg-muted/50">
+                <div className="col-span-4 flex items-center gap-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-lg text-xs font-bold text-white ${item.appColor}`}>
                     {item.initials}
                   </div>
-                )}
-                <div>
-                  <div className="text-sm font-semibold text-card-foreground">{item.name}</div>
-                  <div className="text-xs text-muted-foreground">{item.sub}</div>
+                  <div>
+                    <div className="text-sm font-semibold text-card-foreground">{item.name}</div>
+                    <div className="text-xs text-muted-foreground">{item.sub}</div>
+                  </div>
+                </div>
+
+                <div className="col-span-4 text-sm text-foreground/80">
+                  {item.action}
+                </div>
+
+                <div className="col-span-2">
+                  <StatusBadge status={item.status} color={item.statusColor} />
+                </div>
+
+                <div className="col-span-1 text-sm text-muted-foreground">
+                  {item.date}
+                </div>
+
+                <div className="col-span-1 flex justify-end">
+                  <button className="text-muted-foreground hover:text-foreground"><MoreVertical size={16} /></button>
                 </div>
               </div>
-
-              <div className="col-span-4 text-sm text-foreground/80">
-                {item.action} {item.target && <span className="text-blue-400 font-medium">{item.target}</span>}
-              </div>
-
-              <div className="col-span-2">
-                <StatusBadge status={item.status} color={item.statusColor} />
-              </div>
-
-              <div className="col-span-1 text-sm text-muted-foreground">
-                {item.date}
-              </div>
-
-              <div className="col-span-1 flex justify-end">
-                <button className="text-muted-foreground hover:text-foreground"><MoreVertical size={16} /></button>
-              </div>
+            ))
+          ) : (
+            <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+              No recent activity
             </div>
-          ))}
+          )}
         </div>
       </div>
 

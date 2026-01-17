@@ -1,11 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export default function LoginPage() {
     const router = useRouter();
+    const { login, isAuthenticated, isLoading: authLoading } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Redirect if already authenticated
+    useEffect(() => {
+        if (!authLoading && isAuthenticated) {
+            router.push("/dashboard");
+        }
+    }, [isAuthenticated, authLoading, router]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+
+        const result = await login(email, password);
+
+        if (result.success) {
+            toast.success("Login successful!");
+            router.push("/dashboard");
+        } else {
+            toast.error(result.error || "Login failed. Please check your credentials.");
+        }
+
+        setIsSubmitting(false);
+    };
 
     return (
         <main className="min-h-screen w-full bg-background text-foreground transition-colors duration-300">
@@ -55,14 +84,7 @@ export default function LoginPage() {
                     </div>
 
                     {/* Form */}
-                    <form
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            // After login button click => go to setup page
-                            router.push("/dashboard");
-                        }}
-                        className="space-y-4"
-                    >
+                    <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="mb-2 block text-xs font-medium text-muted-foreground">
                                 Work Email
@@ -72,6 +94,9 @@ export default function LoginPage() {
                                 placeholder="name@company.com"
                                 type="email"
                                 required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                disabled={isSubmitting}
                             />
                         </div>
 
@@ -94,6 +119,9 @@ export default function LoginPage() {
                                     placeholder="••••••••"
                                     type={showPassword ? "text" : "password"}
                                     required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    disabled={isSubmitting}
                                 />
                                 <button
                                     type="button"
@@ -112,19 +140,27 @@ export default function LoginPage() {
 
                         <button
                             type="submit"
-                            className="mt-2 flex h-11 w-full items-center justify-center rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-500 transition-colors"
+                            disabled={isSubmitting}
+                            className="mt-2 flex h-11 w-full items-center justify-center rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Log In
+                            {isSubmitting ? (
+                                <div className="flex items-center gap-2">
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    Logging in...
+                                </div>
+                            ) : (
+                                "Log In"
+                            )}
                         </button>
 
                         <p className="pt-2 text-center text-xs text-muted-foreground">
                             New here?{" "}
                             <button
                                 type="button"
-                                onClick={() => router.push("/setup")}
+                                onClick={() => router.push("/signup")}
                                 className="font-semibold text-blue-400 hover:text-blue-300"
                             >
-                                Start your free trial
+                                Create an account
                             </button>
                         </p>
 
@@ -179,9 +215,9 @@ export default function LoginPage() {
                     <div className="absolute bottom-10 left-1/2 w-[560px] max-w-[92%] -translate-x-1/2 rounded-2xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur">
                         <div className="text-yellow-300">★★★★★</div>
                         <p className="mt-3 text-lg leading-snug text-white/90">
-                            “LeadGenius has completely transformed our outbound strategy.
-                            We’ve seen a 3x increase in qualified leads since implementing
-                            their scoring models.”
+                            "LeadGenius has completely transformed our outbound strategy.
+                            We've seen a 3x increase in qualified leads since implementing
+                            their scoring models."
                         </p>
                         <div className="mt-4 flex items-center gap-3">
                             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500/40 to-cyan-400/20 ring-1 ring-white/15" />

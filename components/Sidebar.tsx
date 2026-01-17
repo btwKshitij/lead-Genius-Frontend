@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
-// Import ModeToggle for theme switching
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { ModeToggle } from "@/components/mode-toggle";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: GridIcon },
@@ -14,17 +15,88 @@ const navItems = [
     icon: DatabaseIcon,
   },
   { label: "Scoring", href: "/dashboard/scoring", icon: SparkIcon },
-
-  // ✅ NEW: below Scoring
   { label: "Enrichment", href: "/dashboard/enrichment", icon: WandIcon },
-
   { label: "Campaigns", href: "/dashboard/campaigns", icon: PlayIcon },
   { label: "CRM Integration", href: "/dashboard/crm", icon: PlugIcon },
 ];
 
+interface Organization {
+  id: string;
+  name: string;
+  domain?: string;
+  industry?: string;
+  role: string;
+}
+
+interface OrganizationsResponse {
+  organizations: Organization[];
+  count: number;
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
+  const [isLoadingOrgs, setIsLoadingOrgs] = useState(true);
+
+  // Fetch organizations
+  useEffect(() => {
+    async function fetchOrganizations() {
+      setIsLoadingOrgs(true);
+      const { data, error } = await api.get<OrganizationsResponse>("/api/organizations");
+
+      if (!error && data) {
+        setOrganizations(data.organizations || []);
+        // Find the current org based on user's current_org_id (if we have it)
+        // For now, just use the first org as current
+        if (data.organizations && data.organizations.length > 0) {
+          setCurrentOrg(data.organizations[0]);
+        }
+      }
+      setIsLoadingOrgs(false);
+    }
+
+    if (user) {
+      fetchOrganizations();
+    }
+  }, [user]);
+
+  // Calculate profile completion
+  const getProfileCompletion = () => {
+    let completed = 0;
+    const total = 5;
+
+    if (user?.full_name) completed++;
+    if (user?.email) completed++;
+    if (currentOrg?.name) completed++;
+    if (currentOrg?.domain) completed++;
+    if (currentOrg?.industry) completed++;
+
+    return Math.round((completed / total) * 100);
+  };
+
+  const profileCompletion = getProfileCompletion();
+
+  const handleSwitchOrg = async (org: Organization) => {
+    const { data, error } = await api.post<{ access_token: string }>(
+      `/api/organizations/switch/${org.id}`
+    );
+
+    if (data) {
+      localStorage.setItem("access_token", data.access_token);
+      setCurrentOrg(org);
+      setIsProfileOpen(false);
+      window.location.reload(); // Refresh to load new org data
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   return (
     <aside className="flex h-screen w-[280px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-colors duration-300">
@@ -33,31 +105,33 @@ export default function Sidebar() {
         <div className="flex items-center gap-3">
           <div className="relative grid h-10 w-10 place-items-center rounded-xl bg-blue-600/20 ring-1 ring-blue-500/20">
             <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-600 text-xs font-bold text-white">
-              G
+              {currentOrg?.name?.charAt(0)?.toUpperCase() || "L"}
             </div>
-            {/* Incomplete Icon on Logo */}
-            <div className="absolute right-0 top-0 z-50 grid h-4 w-4 -translate-y-1/3 translate-x-1/3 place-items-center rounded-full bg-amber-500 ring-2 ring-sidebar">
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-black"
-              >
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-            </div>
+            {/* Show warning if profile incomplete */}
+            {profileCompletion < 100 && (
+              <div className="absolute right-0 top-0 z-50 grid h-4 w-4 -translate-y-1/3 translate-x-1/3 place-items-center rounded-full bg-amber-500 ring-2 ring-sidebar">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-black"
+                >
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+              </div>
+            )}
           </div>
           <div className="leading-tight">
             <div className="flex items-center gap-2 text-sm font-semibold text-sidebar-foreground">
-              LeadIntel
+              {currentOrg?.name || "LeadGenius"}
             </div>
-            <div className="text-xs text-muted-foreground">80% Completed</div>
+            <div className="text-xs text-muted-foreground">{profileCompletion}% Completed</div>
           </div>
         </div>
         <ModeToggle />
@@ -88,7 +162,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Spacer & Centered Organisation Card */}
+      {/* Organisation Card */}
       <div className="flex flex-1 flex-col justify-center px-4">
         <Link
           href="/dashboard/organisation"
@@ -102,7 +176,7 @@ export default function Sidebar() {
               Organisation
             </div>
             <div className="truncate text-[11px] text-muted-foreground">
-              Business Name
+              {isLoadingOrgs ? "Loading..." : currentOrg?.name || "No organization"}
             </div>
           </div>
           <ChevronDownIcon className="ml-auto text-muted-foreground" />
@@ -112,7 +186,7 @@ export default function Sidebar() {
       {/* Bottom area */}
       <div className="p-4 relative">
 
-        {/* ✅ Affiliate / Program (above profile card) */}
+        {/* Affiliate / Program */}
         <div className="mb-3 flex flex-col gap-1">
           <Link
             href="/dashboard/pricing"
@@ -132,29 +206,57 @@ export default function Sidebar() {
         {/* Profile Menu Popup */}
         {isProfileOpen && (
           <div className="absolute bottom-full left-4 right-4 mb-3 z-50 overflow-hidden rounded-xl border border-border bg-popover p-2 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl">
-            <div className="mb-2 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">My Companies</div>
-
-            {/* Company 1 */}
-            <div className="group flex cursor-pointer items-center justify-between rounded-lg px-2 py-2 transition hover:bg-accent">
-              <div className="flex items-center gap-3">
-                <div className="grid h-7 w-7 place-items-center rounded bg-blue-600 text-[10px] font-bold text-white">L</div>
-                <div className="text-[13px] font-medium text-foreground">LeadIntel</div>
-              </div>
-              <Link href="/settings" className="grid h-7 w-7 place-items-center rounded text-muted-foreground transition hover:bg-background hover:text-foreground">
-                <GearIcon className="scale-90" />
-              </Link>
+            <div className="mb-2 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              My Organizations
             </div>
 
-            {/* Company 2 */}
-            <div className="group flex cursor-pointer items-center justify-between rounded-lg px-2 py-2 transition hover:bg-accent">
-              <div className="flex items-center gap-3">
-                <div className="grid h-7 w-7 place-items-center rounded bg-purple-600 text-[10px] font-bold text-white">A</div>
-                <div className="text-[13px] font-medium text-foreground">Acme Corp</div>
+            {/* Real Organizations List */}
+            {organizations.length > 0 ? (
+              organizations.map((org) => (
+                <div
+                  key={org.id}
+                  onClick={() => handleSwitchOrg(org)}
+                  className={`group flex cursor-pointer items-center justify-between rounded-lg px-2 py-2 transition hover:bg-accent ${currentOrg?.id === org.id ? "bg-accent/50" : ""
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-7 w-7 place-items-center rounded bg-blue-600 text-[10px] font-bold text-white">
+                      {org.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-medium text-foreground">{org.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{org.role}</div>
+                    </div>
+                  </div>
+                  {currentOrg?.id === org.id && (
+                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="px-2 py-2 text-[12px] text-muted-foreground">
+                No organizations yet
               </div>
-              <Link href="/settings" className="grid h-7 w-7 place-items-center rounded text-muted-foreground transition hover:bg-background hover:text-foreground">
-                <GearIcon className="scale-90" />
-              </Link>
-            </div>
+            )}
+
+            {/* Add New Org */}
+            <Link
+              href="/onboarding/create-org"
+              className="mt-2 flex items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-blue-500 hover:bg-accent transition"
+            >
+              <span>+ Add New Organization</span>
+            </Link>
+
+            {/* Divider */}
+            <div className="my-2 h-px bg-border"></div>
+
+            {/* Logout */}
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-red-500 hover:bg-red-500/10 transition"
+            >
+              Sign Out
+            </button>
           </div>
         )}
 
@@ -163,19 +265,21 @@ export default function Sidebar() {
           onClick={() => setIsProfileOpen(!isProfileOpen)}
           className="flex w-full items-center gap-3 rounded-2xl border border-sidebar-border bg-sidebar-accent/50 p-2 text-left transition hover:bg-sidebar-accent"
         >
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500/40 to-cyan-400/20 ring-1 ring-sidebar-border" />
+          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500/40 to-cyan-400/20 ring-1 ring-sidebar-border grid place-items-center text-xs font-bold text-sidebar-foreground">
+            {user?.full_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
+          </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[13px] font-semibold text-sidebar-foreground">
-              Alex Morgan
+              {user?.full_name || user?.email?.split("@")[0] || "User"}
             </div>
             <div className="truncate text-[11px] text-muted-foreground">
-              alex@leadintel.io
+              {user?.email || "Loading..."}
             </div>
           </div>
           <ChevronUpIcon className={`ml-auto text-muted-foreground transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
         </button>
 
-        {/* ✅ Privacy / Terms (below profile card) */}
+        {/* Privacy / Terms */}
         <div className="mt-3 flex items-center justify-center gap-4 text-xs text-muted-foreground">
           <Link href="/dashboard/privacy" className="hover:text-sidebar-foreground hover:underline">
             Privacy
