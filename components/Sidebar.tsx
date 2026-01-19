@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: GridIcon },
@@ -17,7 +18,7 @@ const navItems = [
   { label: "Scoring", href: "/dashboard/scoring", icon: SparkIcon },
   { label: "Enrichment", href: "/dashboard/enrichment", icon: WandIcon },
   { label: "Campaigns", href: "/dashboard/campaigns", icon: PlayIcon },
-  { label: "CRM Integration", href: "/dashboard/crm", icon: PlugIcon },
+  { label: "CRM", href: "/dashboard/crm", icon: PlugIcon },
 ];
 
 interface Organization {
@@ -43,6 +44,7 @@ export default function Sidebar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(true);
@@ -89,15 +91,28 @@ export default function Sidebar() {
   const profileCompletion = getProfileCompletion();
 
   const handleSwitchOrg = async (org: Organization) => {
-    const { data, error } = await api.post<{ access_token: string }>(
-      `/api/organizations/switch/${org.id}`
-    );
+    try {
+      const { data, error } = await api.post<{ access_token: string }>(
+        `/api/organizations/switch/${org.id}`,
+        {}
+      );
 
-    if (data) {
-      localStorage.setItem("access_token", data.access_token);
-      setCurrentOrg(org);
-      setIsProfileOpen(false);
-      window.location.reload(); // Refresh to load new org data
+      if (error) {
+        toast.error(`Failed to switch: ${error.detail || "Unknown error"}`);
+        return;
+      }
+
+      if (data) {
+        localStorage.setItem("access_token", data.access_token);
+        setCurrentOrg(org);
+        setIsProfileOpen(false);
+        setIsOrgDropdownOpen(false);
+        toast.success(`Switched to ${org.name}`);
+        window.location.reload();
+      }
+    } catch (e) {
+      console.error("Switch org exception:", e);
+      toast.error("An error occurred while switching organization");
     }
   };
 
@@ -171,25 +186,81 @@ export default function Sidebar() {
       </nav>
 
       {/* Organisation Card */}
-      <div className="flex flex-1 flex-col justify-center px-4">
-        <Link
-          href="/dashboard/organisation"
-          className="flex items-center gap-3 rounded-2xl border border-sidebar-border bg-sidebar-accent/50 p-2 hover:bg-sidebar-accent transition-colors"
-        >
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-purple-500/40 to-pink-400/20 ring-1 ring-sidebar-border">
-            <BuildingIcon className="text-sidebar-foreground/80" />
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-[13px] font-semibold text-sidebar-foreground">
-              Organisation
+      <div className="px-4 mt-2 mb-4">
+        <div className="relative">
+          <button
+            onClick={() => setIsOrgDropdownOpen(!isOrgDropdownOpen)}
+            className="flex w-full items-center gap-3 rounded-2xl border border-sidebar-border bg-sidebar-accent/50 p-2 hover:bg-sidebar-accent transition-colors text-left"
+          >
+            <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-purple-500/40 to-pink-400/20 ring-1 ring-sidebar-border">
+              <BuildingIcon className="text-sidebar-foreground/80" />
             </div>
-            <div className="truncate text-[11px] text-muted-foreground">
-              {isLoadingOrgs ? "Loading..." : currentOrg?.name || "No organization"}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-semibold text-sidebar-foreground">
+                Organisation
+              </div>
+              <div className="truncate text-[11px] text-muted-foreground">
+                {isLoadingOrgs ? "Loading..." : currentOrg?.name || "No organization"}
+              </div>
             </div>
-          </div>
-          <ChevronDownIcon className="ml-auto text-muted-foreground" />
-        </Link>
+            <ChevronDownIcon className={`ml-auto text-muted-foreground transition-transform duration-200 ${isOrgDropdownOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {/* Organization Switcher Dropdown */}
+          {isOrgDropdownOpen && (
+            <div className="absolute top-full left-0 right-0 mt-2 z-50 overflow-hidden rounded-xl border border-border bg-popover p-2 shadow-xl ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 w-full">
+              <div className="mb-2 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Switch Organization
+              </div>
+
+              <div className="max-h-[200px] overflow-y-auto space-y-1">
+                {organizations.map((org) => (
+                  <button
+                    key={org.id}
+                    onClick={() => {
+                      handleSwitchOrg(org);
+                      setIsOrgDropdownOpen(false);
+                    }}
+                    className={`w-full group flex items-center justify-between rounded-lg px-2 py-2 transition hover:bg-accent text-left ${currentOrg?.id === org.id ? "bg-accent/50" : ""
+                      }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="grid h-6 w-6 flex-shrink-0 place-items-center rounded bg-blue-600 text-[10px] font-bold text-white">
+                        {org.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="truncate text-[13px] font-medium text-foreground">{org.name}</div>
+                    </div>
+                    {currentOrg?.id === org.id && (
+                      <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div className="my-2 h-px bg-border"></div>
+
+              <Link
+                href="/dashboard/organisation"
+                onClick={() => setIsOrgDropdownOpen(false)}
+                className="flex items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-sidebar-foreground hover:bg-accent transition"
+              >
+                <GearIcon className="h-3.5 w-3.5" />
+                <span>Manage Organization</span>
+              </Link>
+              <Link
+                href="/onboarding/create-org"
+                onClick={() => setIsOrgDropdownOpen(false)}
+                className="flex items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-blue-500 hover:bg-accent transition"
+              >
+                <span>+ Add New Organization</span>
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Spacer to push bottom content down */}
+      <div className="flex-1"></div>
 
       {/* Bottom area */}
       <div className="p-4 relative">
@@ -211,81 +282,95 @@ export default function Sidebar() {
           </Link>
         </div>
 
-        {/* Profile Menu Popup */}
-        {isProfileOpen && (
-          <div className="absolute bottom-full left-4 right-4 mb-3 z-50 overflow-hidden rounded-xl border border-border bg-popover p-2 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl">
-            <div className="mb-2 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              My Organizations
-            </div>
-
-            {/* Real Organizations List */}
-            {organizations.length > 0 ? (
-              organizations.map((org) => (
-                <div
-                  key={org.id}
-                  onClick={() => handleSwitchOrg(org)}
-                  className={`group flex cursor-pointer items-center justify-between rounded-lg px-2 py-2 transition hover:bg-accent ${currentOrg?.id === org.id ? "bg-accent/50" : ""
-                    }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-7 w-7 place-items-center rounded bg-blue-600 text-[10px] font-bold text-white">
-                      {org.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="text-[13px] font-medium text-foreground">{org.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{org.role}</div>
-                    </div>
-                  </div>
-                  {currentOrg?.id === org.id && (
-                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <div className="px-2 py-2 text-[12px] text-muted-foreground">
-                No organizations yet
+        {/* Profile Section */}
+        <div className="relative">
+          {/* Profile Menu Popup */}
+          {isProfileOpen && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 z-50 overflow-hidden rounded-xl border border-border bg-popover p-2 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="mb-2 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                My Organizations
               </div>
-            )}
 
-            {/* Add New Org */}
-            <Link
-              href="/onboarding/create-org"
-              className="mt-2 flex items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-blue-500 hover:bg-accent transition"
-            >
-              <span>+ Add New Organization</span>
-            </Link>
+              {/* Real Organizations List */}
+              <div className="max-h-[200px] overflow-y-auto space-y-1">
+                {organizations.length > 0 ? (
+                  organizations.map((org) => (
+                    <div
+                      key={org.id}
+                      onClick={() => handleSwitchOrg(org)}
+                      className={`group flex cursor-pointer items-center justify-between rounded-lg px-2 py-2 transition hover:bg-accent ${currentOrg?.id === org.id ? "bg-accent/50" : ""
+                        }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-7 w-7 place-items-center rounded bg-blue-600 text-[10px] font-bold text-white">
+                          {org.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="text-[13px] font-medium text-foreground">{org.name}</div>
+                          <div className="text-[10px] text-muted-foreground">{org.role}</div>
+                        </div>
+                      </div>
+                      {currentOrg?.id === org.id && (
+                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-2 py-2 text-[12px] text-muted-foreground">
+                    No organizations yet
+                  </div>
+                )}
+              </div>
 
-            {/* Divider */}
-            <div className="my-2 h-px bg-border"></div>
+              {/* Add New Org */}
+              <Link
+                href="/onboarding/create-org"
+                className="mt-2 flex items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-blue-500 hover:bg-accent transition"
+              >
+                <span>+ Add New Organization</span>
+              </Link>
 
-            {/* Logout */}
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-red-500 hover:bg-red-500/10 transition"
-            >
-              Sign Out
-            </button>
-          </div>
-        )}
+              {/* Divider */}
+              <div className="my-2 h-px bg-border"></div>
 
-        {/* Profile card */}
-        <button
-          onClick={() => setIsProfileOpen(!isProfileOpen)}
-          className="flex w-full items-center gap-3 rounded-2xl border border-sidebar-border bg-sidebar-accent/50 p-2 text-left transition hover:bg-sidebar-accent"
-        >
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500/40 to-cyan-400/20 ring-1 ring-sidebar-border grid place-items-center text-xs font-bold text-sidebar-foreground">
-            {user?.full_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold text-sidebar-foreground">
-              {user?.full_name || user?.email?.split("@")[0] || "User"}
+              {/* Settings Link */}
+              <Link
+                href="/settings"
+                className="flex items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-foreground hover:bg-accent transition"
+              >
+                <GearIcon className="h-4 w-4 text-muted-foreground" />
+                <span>Settings</span>
+              </Link>
+
+              {/* Logout */}
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-red-500 hover:bg-red-500/10 transition"
+              >
+                Sign Out
+              </button>
             </div>
-            <div className="truncate text-[11px] text-muted-foreground">
-              {user?.email || "Loading..."}
+          )}
+
+          {/* Profile card */}
+          <button
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className="flex w-full items-center gap-3 rounded-2xl border border-sidebar-border bg-sidebar-accent/50 p-2 text-left transition hover:bg-sidebar-accent"
+          >
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500/40 to-cyan-400/20 ring-1 ring-sidebar-border grid place-items-center text-xs font-bold text-sidebar-foreground">
+              {user?.full_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
             </div>
-          </div>
-          <ChevronUpIcon className={`ml-auto text-muted-foreground transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
-        </button>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-semibold text-sidebar-foreground">
+                {user?.full_name || user?.email?.split("@")[0] || "User"}
+              </div>
+              <div className="truncate text-[11px] text-muted-foreground">
+                {user?.email || "Loading..."}
+              </div>
+            </div>
+            <ChevronUpIcon className={`ml-auto text-muted-foreground transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
 
         {/* Privacy / Terms */}
         <div className="mt-3 flex items-center justify-center gap-4 text-xs text-muted-foreground">
