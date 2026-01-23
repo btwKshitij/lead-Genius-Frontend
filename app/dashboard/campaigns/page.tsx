@@ -49,13 +49,13 @@ export default function CampaignsPage() {
         totalContacted: number;
         avgReplyRate: number;
         meetings: number;
-        channels?: { linkedin: number; email: number; ai_call: number };
-    }>({
-        active: 0,
-        totalContacted: 0,
-        avgReplyRate: 0,
-        meetings: 0
-    });
+        channels: { name: string; contacted: number; replied: number; }[];
+    } | null>(null);
+
+    // Edit modal state
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+    const [editFormData, setEditFormData] = useState({ name: "", type: "" });
 
     const handleCampaignAction = async (id: string, action: 'run' | 'pause' | 'resume' | 'delete') => {
         try {
@@ -124,6 +124,30 @@ export default function CampaignsPage() {
         toast.info("Campaign creation coming soon!");
     };
 
+    const handleEditCampaign = async (campaignId: string) => {
+        // Fetch campaign details
+        const { data, error } = await api.get<Campaign>(`/api/campaigns/${campaignId}`);
+        if (!error && data) {
+            setEditingCampaign(data);
+            setEditFormData({ name: data.name, type: data.type });
+            setIsEditModalOpen(true);
+        }
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingCampaign) return;
+        const { error } = await api.patch(`/api/campaigns/${editingCampaign.id}`, editFormData);
+        if (!error) {
+            toast.success("Campaign updated!");
+            setIsEditModalOpen(false);
+            // Refresh campaigns
+            const res = await api.get<CampaignsResponse>("/api/campaigns");
+            if (res.data) setCampaigns(res.data.items || []);
+        } else {
+            toast.error("Failed to update campaign");
+        }
+    };
+
     return (
         <div className="flex h-full flex-col overflow-hidden bg-background text-muted-foreground transition-colors duration-300">
             {/* Header */}
@@ -151,7 +175,7 @@ export default function CampaignsPage() {
                     <Link href="/dashboard/campaigns/active" className="contents">
                         <StatCard
                             label="Active Campaigns"
-                            value={isLoading ? "..." : String(stats.active)}
+                            value={isLoading ? "..." : String(stats?.active || 0)}
                             trend={`${campaigns.length} total`}
                             trendUp={true}
                             icon={<RocketIcon />}
@@ -160,21 +184,21 @@ export default function CampaignsPage() {
                     </Link>
                     <StatCard
                         label="Total Leads Contacted"
-                        value={isLoading ? "..." : stats.totalContacted.toLocaleString()}
+                        value={isLoading ? "..." : stats?.totalContacted.toLocaleString() || "0"}
                         trend="From all campaigns"
                         trendUp={true}
                         icon={<UsersIcon />}
                     />
                     <StatCard
                         label="Avg. Reply Rate"
-                        value={isLoading ? "..." : `${stats.avgReplyRate}%`}
+                        value={isLoading ? "..." : `${stats?.avgReplyRate || 0}%`}
                         trend="Across all channels"
-                        trendUp={stats.avgReplyRate > 10}
+                        trendUp={(stats?.avgReplyRate || 0) > 10}
                         icon={<ReplyIcon />}
                     />
                     <StatCard
                         label="Meetings Booked"
-                        value={isLoading ? "..." : String(stats.meetings)}
+                        value={isLoading ? "..." : String(stats?.meetings || 0)}
                         trend="Estimated from replies"
                         trendUp={true}
                         icon={<CalendarIcon />}
@@ -193,7 +217,7 @@ export default function CampaignsPage() {
                             <ChannelCard
                                 title="LinkedIn Outreach"
                                 desc="Automate connection requests, profile visits, and follow-up sequences safely."
-                                activeCount={isLoading ? "..." : (stats.channels?.linkedin || 0)}
+                                activeCount={isLoading ? "..." : String(stats?.channels?.find(c => c.name === 'linkedin')?.contacted || 0)}
                                 icon={<LinkedInIcon />}
                                 gradient="from-blue-600/20 to-cyan-500/5"
                                 borderColor="border-blue-500/20"
@@ -203,7 +227,7 @@ export default function CampaignsPage() {
                         <ChannelCard
                             title="Email Outreach"
                             desc="Cold email sequences with A/B testing, personalization, and deliverability warm-up."
-                            activeCount={isLoading ? "..." : (stats.channels?.email || 0)}
+                            activeCount={isLoading ? "..." : String(stats?.channels?.find(c => c.name === 'email')?.contacted || 0)}
                             icon={<MailIcon />}
                             gradient="from-emerald-600/20 to-teal-500/5"
                             borderColor="border-emerald-500/20"
@@ -212,7 +236,7 @@ export default function CampaignsPage() {
                         <ChannelCard
                             title="AI Call Agent"
                             desc="Deploy conversational AI agents to qualify leads over the phone instantly."
-                            activeCount={isLoading ? "..." : (stats.channels?.ai_call || 0)}
+                            activeCount={isLoading ? "..." : String(stats?.channels?.find(c => c.name === 'ai_call')?.contacted || 0)}
                             icon={<PhoneIcon />}
                             badge="NEW"
                             gradient="from-indigo-600/20 to-purple-500/5"

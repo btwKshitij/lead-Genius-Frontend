@@ -132,7 +132,7 @@ export default function OrganisationPage() {
             if (!selectedOrg) return;
 
             setIsLoadingMembers(true);
-            const { data, error } = await api.get<MembersResponse>("/api/organizations/members");
+            const { data, error } = await api.get<MembersResponse>(`/api/organizations/${selectedOrg.id}/members`);
 
             if (!error && data) {
                 setMembers(data.members || []);
@@ -214,7 +214,7 @@ export default function OrganisationPage() {
         }
 
         setIsSendingInvite(true);
-        const { data, error } = await api.post("/api/organizations/invite", {
+        const { data, error } = await api.post(`/api/organizations/${selectedOrg!.id}/invite`, {
             email: inviteEmail.trim(),
             role: inviteRole,
         });
@@ -232,7 +232,7 @@ export default function OrganisationPage() {
 
     const handleChangeRole = async (memberId: string, newRole: string) => {
         setChangingRole(memberId);
-        const { error } = await api.patch(`/api/organizations/members/${memberId}/role`, {
+        const { error } = await api.patch(`/api/organizations/${selectedOrg!.id}/members/${memberId}`, {
             role: newRole,
         });
 
@@ -252,7 +252,7 @@ export default function OrganisationPage() {
             return;
         }
 
-        const { error } = await api.delete(`/api/organizations/members/${memberId}`);
+        const { error } = await api.delete(`/api/organizations/${selectedOrg!.id}/members/${memberId}`);
 
         if (error) {
             toast.error(error.detail || "Failed to remove member");

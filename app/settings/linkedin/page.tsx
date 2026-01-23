@@ -1,7 +1,43 @@
+"use client";
 
 import { Bell, ChevronDown, Linkedin, Lock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+
+interface LinkedInCredential {
+    id: string;
+    profile_name?: string;
+    profile_url?: string;
+    is_active: boolean;
+}
 
 export default function LinkedInSettingsPage() {
+    const { user } = useAuth();
+    const [isLoading, setIsLoading] = useState(true);
+    const [linkedInConnected, setLinkedInConnected] = useState(false);
+    const [linkedInProfile, setLinkedInProfile] = useState<LinkedInCredential | null>(null);
+
+    useEffect(() => {
+        fetchLinkedInStatus();
+    }, []);
+
+    const fetchLinkedInStatus = async () => {
+        setIsLoading(true);
+        try {
+            const res = await api.get<LinkedInCredential[]>("/api/linkedin/credentials");
+            if (res.data && res.data.length > 0) {
+                setLinkedInConnected(true);
+                setLinkedInProfile(res.data[0]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch LinkedIn status:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="flex h-full flex-col bg-background text-foreground transition-colors duration-300">
             {/* Top Header */}
@@ -25,9 +61,9 @@ export default function LinkedInSettingsPage() {
 
                     <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
                         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-pink-500 to-rose-400 ring-2 ring-background">
-                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Shubhangi" alt="Avatar" className="h-full w-full rounded-full" />
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=User" alt="Avatar" className="h-full w-full rounded-full" />
                         </div>
-                        <span className="text-sm font-semibold text-foreground">Shubhangi Gupta</span>
+                        <span className="text-sm font-semibold text-foreground">{user?.full_name || user?.email}</span>
                         <ChevronDown size={14} className="text-muted-foreground" />
                     </div>
                 </div>
@@ -46,17 +82,40 @@ export default function LinkedInSettingsPage() {
                         <h3 className="text-lg font-bold text-foreground">LinkedIn credentials</h3>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-xl border border-border bg-background p-4 transition-colors duration-300">
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-500 to-rose-400 p-[2px]">
-                                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Shubhangi" alt="Avatar" className="h-full w-full rounded-full bg-white" />
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <div className="text-muted-foreground">Loading...</div>
+                        </div>
+                    ) : linkedInConnected ? (
+                        <div className="flex items-center justify-between rounded-xl border border-border bg-background p-4 transition-colors duration-300">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-500 to-rose-400 p-[2px]">
+                                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=User" alt="Avatar" className="h-full w-full rounded-full bg-white" />
+                                </div>
+                                <span className="font-semibold text-foreground">
+                                    {linkedInProfile?.profile_name || user?.full_name || "LinkedIn Profile"}
+                                </span>
                             </div>
-                            <span className="font-semibold text-foreground">Shubhangi Gupta</span>
+                            <div className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                Connected
+                            </div>
                         </div>
-                        <div className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                            Connected
+                    ) : (
+                        <div className="flex items-center justify-between rounded-xl border border-border bg-background p-4 transition-colors duration-300">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-muted grid place-items-center">
+                                    <Linkedin size={20} />
+                                </div>
+                                <span className="font-semibold text-muted-foreground">Not Connected</span>
+                            </div>
+                            <button
+                                onClick={() => toast.info("LinkedIn OAuth integration will be available soon")}
+                                className="rounded-lg bg-[#0077b5] px-4 py-2 text-xs font-bold text-white hover:bg-[#006396] transition-colors"
+                            >
+                                Connect LinkedIn
+                            </button>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Security Card */}
@@ -66,7 +125,7 @@ export default function LinkedInSettingsPage() {
                             <div className="grid h-8 w-8 place-items-center rounded bg-[#00cfa6] text-white">
                                 <Lock size={18} />
                             </div>
-                            <h3 className="text-lg font-bold text-foreground">Securely automate LinkedIn with Waalaxy + 2FA</h3>
+                            <h3 className="text-lg font-bold text-foreground">Securely automate LinkedIn with Lead Genius + 2FA</h3>
                         </div>
                         <a href="#" className="flex items-center gap-1 text-sm font-semibold text-blue-500 hover:text-blue-400 hover:underline">
                             <span className="text-lg">↗</span> Learn more
@@ -75,7 +134,7 @@ export default function LinkedInSettingsPage() {
 
                     <div className="space-y-4 text-sm text-muted-foreground">
                         <p>
-                            Waalaxy connects to your LinkedIn account via a Chrome extension. Once installed, it allows the tool to
+                            Lead Genius connects to your LinkedIn account via a Chrome extension. Once installed, it allows the tool to
                             <strong className="text-foreground"> interact</strong> with your LinkedIn profile.
                         </p>
                         <p>

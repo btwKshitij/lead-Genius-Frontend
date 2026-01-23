@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import Link from "next/link";
-import { Loader2, Plus, Search, Filter, Bell, Briefcase, Mail, Phone, MoreHorizontal, User, ExternalLink } from "lucide-react";
+import { Loader2, Plus, Search, Filter, Bell, Briefcase, Mail, Phone, MoreHorizontal, User, ExternalLink, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import {
     Dialog,
@@ -176,6 +176,47 @@ export default function CRMPage() {
         }
     };
 
+    const handleExportLeads = () => {
+        const params = new URLSearchParams();
+        if (activeFilter !== "All") {
+            params.append("status", activeFilter.toLowerCase());
+        }
+        const url = `/api/leads/export?${params.toString()}`;
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        window.open(`${API_BASE_URL}${url}`, '_blank');
+        toast.success("Export started!");
+    };
+
+    const handleImportLeads = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/leads/import`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                toast.success(`Imported ${data.created || 0} leads successfully!`);
+                fetchLeads(); // Refresh the list
+            } else {
+                toast.error("Failed to import leads");
+            }
+        } catch (error) {
+            toast.error("Error importing leads");
+        }
+        // Reset file input
+        event.target.value = '';
+    };
+
     // Calculate local counts for tabs (approximation, ideal is backend)
     const interestedCount = stats?.by_status?.['interested'] || 0;
     const followUpCount = stats?.by_status?.['contacted'] || 0; // Assuming contacted maps to follow-up roughly
@@ -194,6 +235,27 @@ export default function CRMPage() {
                         <Bell className="h-5 w-5" />
                         <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 border border-background"></span>
                     </button>
+
+                    {/* Export Button */}
+                    <Button onClick={handleExportLeads} variant="outline" className="flex items-center gap-2">
+                        <Download className="h-4 w-4" />
+                        Export CSV
+                    </Button>
+
+                    {/* Import Button */}
+                    <label htmlFor="import-leads" className="cursor-pointer">
+                        <input
+                            id="import-leads"
+                            type="file"
+                            accept=".csv"
+                            onChange={handleImportLeads}
+                            className="hidden"
+                        />
+                        <Button type="button" variant="outline" className="flex items-center gap-2">
+                            <Upload className="h-4 w-4" />
+                            Import CSV
+                        </Button>
+                    </label>
 
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
