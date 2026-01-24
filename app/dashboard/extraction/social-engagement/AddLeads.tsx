@@ -29,6 +29,7 @@ export default function AddLeads({ onClose, onSuccess }: { onClose: () => void; 
     // Step 3 Filters
     const [filterExisting, setFilterExisting] = useState(true);
     const [filterLowConnections, setFilterLowConnections] = useState(true);
+    const [useCloudScraper, setUseCloudScraper] = useState(true);
 
     // Step 4 - REQUIRE USER INPUT
     const [listName, setListName] = useState("");
@@ -40,6 +41,11 @@ export default function AddLeads({ onClose, onSuccess }: { onClose: () => void; 
         } else {
             // Submit to backend
             try {
+                // Open new tab for LinkedIn Post Search immediately upon creation
+                if (selected === "linkedin-post" && url) {
+                    window.open(url, "_blank");
+                }
+
                 setIsLoading(true);
                 const payload = {
                     name: listName, // User input collected in Step 1
@@ -50,7 +56,8 @@ export default function AddLeads({ onClose, onSuccess }: { onClose: () => void; 
                         filters: {
                             existing_leads: filterExisting,
                             low_connections: filterLowConnections
-                        }
+                        },
+                        use_cloud_scraper: useCloudScraper
                     }
                 };
 
@@ -219,7 +226,10 @@ export default function AddLeads({ onClose, onSuccess }: { onClose: () => void; 
                             <div className="mb-8 space-y-6">
                                 <div>
                                     <p className="mb-3 text-sm text-muted-foreground">
-                                        Filter profiles in the <span className="text-blue-500 underline cursor-pointer">LinkedIn search</span> and paste the URL below
+                                        {selected === 'linkedin-post'
+                                            ? "Paste the full URL of the LinkedIn Post you want to analyze:"
+                                            : <>Filter profiles in the <span className="text-blue-500 underline cursor-pointer">LinkedIn search</span> and paste the URL below</>
+                                        }
                                     </p>
                                     <div className="relative">
                                         <input
@@ -340,6 +350,28 @@ export default function AddLeads({ onClose, onSuccess }: { onClose: () => void; 
                                         <span className="text-xs">This option will cause slower lead upload time if selected</span>
                                     </div>
                                 </div>
+
+                                {selected === 'linkedin-post' && (
+                                    <div className="rounded-xl border border-border bg-card/50 p-4 text-foreground/75">
+                                        <div className="space-y-3">
+                                            <label className="flex items-center gap-3 cursor-pointer group">
+                                                <div className={`flex h-6 w-6 items-center justify-center rounded border transition ${useCloudScraper ? 'bg-blue-600 border-blue-600' : 'border-muted-foreground/30 group-hover:border-muted-foreground/50'}`}>
+                                                    {useCloudScraper && <Check size={14} className="text-white" />}
+                                                </div>
+                                                <input
+                                                    type="checkbox"
+                                                    className="hidden"
+                                                    checked={useCloudScraper}
+                                                    onChange={(e) => setUseCloudScraper(e.target.checked)}
+                                                />
+                                                <span className="text-sm text-foreground">Use Cloud Extraction (Automated)</span>
+                                            </label>
+                                            <p className="text-xs text-muted-foreground ml-9">
+                                                Use our cloud servers to extract data automatically (Costs credits). Uncheck to use your browser extension manually.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </>
                     )}
